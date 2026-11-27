@@ -122,6 +122,13 @@ to the end of its **Target**; on a Mac, `open -a OpenStatsEngine --args --port 9
 | `--open` / `--no-open` | Open the entry page in a browser on start (the apps do by default) |
 | `--no-update-check` | Never ask GitHub about new releases (also `OSE_NO_UPDATE_CHECK=1`) |
 
+OpenStatsEngine answers to its IP address, `localhost`, a plain computer name
+(`stats-pc`) or a `.local` name. Anything else is refused, so a web page can't
+reach it by pointing its own domain at this computer. If you open it by a real
+DNS name (say `stats.example.org`), list it in `OSE_ALLOWED_HOSTS`
+(comma-separated). Pages from other sites can read the XML and JSON, as before,
+but only OpenStatsEngine's own pages can change anything.
+
 ---
 
 ## Updating
