@@ -17,6 +17,21 @@ import { id, slug, localStamp, localDate, clone } from './util.js';
  *     exports/                     generated CSV / PDF
  */
 
+/**
+ * Team and game ids become file and folder names, and they arrive in URLs and
+ * request bodies, so one must never be able to climb out of its folder
+ * ("..", "../../x", "..\\..\\Users" on Windows) or name a drive.
+ */
+export function safeId(v, what = 'id') {
+  const s = String(v ?? '');
+  if (!s || s.length > 200 || s === '.' || s === '..' || /[/\\:\0]/.test(s) || s.startsWith('.')) {
+    const e = new Error(`That ${what} isn't valid: use letters, numbers, - and _`);
+    e.status = 400;
+    throw e;
+  }
+  return s;
+}
+
 export class Store {
   constructor(root) {
     this.root = path.resolve(root);
@@ -122,7 +137,7 @@ export class Store {
   }
 
   // ---------- teams ----------
-  teamPath(teamId) { return path.join(this.dirs.teams, `${teamId}.json`); }
+  teamPath(teamId) { return path.join(this.dirs.teams, `${safeId(teamId, 'team id')}.json`); }
 
   listTeams() {
     return fs.readdirSync(this.dirs.teams)
@@ -132,7 +147,7 @@ export class Store {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  getTeam(teamId) { return this._readJSON(this.teamPath(teamId)); }
+  getTeam(teamId) { try { return this._readJSON(this.teamPath(teamId)); } catch { return null; } }
 
   /** Create or update a team. Roster is merged by jersey number + name. */
   saveTeam(team) {
@@ -300,7 +315,7 @@ export class Store {
   }
 
   // ---------- games ----------
-  gameDir(gameId) { return path.join(this.dirs.games, gameId); }
+  gameDir(gameId) { return path.join(this.dirs.games, safeId(gameId, 'game id')); }
 
   listGames() {
     if (!fs.existsSync(this.dirs.games)) return [];
@@ -310,7 +325,7 @@ export class Store {
       .sort((a, b) => String(b.date + b.startTime).localeCompare(String(a.date + a.startTime)));
   }
 
-  getGame(gameId) { return this._readJSON(path.join(this.gameDir(gameId), 'meta.json')); }
+  getGame(gameId) { try { return this._readJSON(path.join(this.gameDir(gameId), 'meta.json')); } catch { return null; } }
 
   createGame(spec) {
     const date = spec.date || localDate();
@@ -353,7 +368,7 @@ export class Store {
 
   deleteGame(gameId) {
     fs.rmSync(this.gameDir(gameId), { recursive: true, force: true });
-    fs.rmSync(path.join(this.dirs.vmix, gameId), { recursive: true, force: true });
+    fs.rmSync(path.join(this.dirs.vmix, safeId(gameId, 'game id')), { recursive: true, force: true });
     this._eventCache.delete(gameId);
   }
 

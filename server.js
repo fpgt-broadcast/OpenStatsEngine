@@ -8,6 +8,7 @@ import { ScorebotClient } from './src/integrations/scorebot.js';
 import { sea, packaged, VERSION, ROOT, openBrowser } from './src/runtime.js';
 import { resolveDataDir } from './src/datadir.js';
 import { checkForUpdate } from './src/update.js';
+import { hostAllowed, hostName, crossSite } from './src/guard.js';
 
 /* ---------------- args ---------------- */
 const argv = process.argv.slice(2);
@@ -166,11 +167,24 @@ const server = http.createServer(async (req, res) => {
   try { url = new URL(req.url, `http://${req.headers.host || 'localhost'}`); }
   catch { res.writeHead(400).end('Bad URL'); return; }
 
-  // Open CORS: vMix, browsers and other tools on the LAN all need to read this.
+  // A web page that points its own domain name at this computer (DNS rebinding)
+  // must not get in: only IPs, localhost, plain computer names and .local names.
+  if (!hostAllowed(req.headers.host)) {
+    res.writeHead(421, { 'Content-Type': 'text/plain; charset=utf-8' })
+      .end(`OpenStatsEngine doesn't answer to the name "${hostName(req.headers.host)}". Use this computer's IP address, or add the name to OSE_ALLOWED_HOSTS.`);
+    return;
+  }
+
+  // Open CORS for reading only: vMix, browsers and other tools on the LAN all
+  // need to read this, but no other site's page may change anything.
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
   if (req.method === 'OPTIONS') { res.writeHead(204).end(); return; }
+  if (req.method !== 'GET' && req.method !== 'HEAD' && crossSite(req)) {
+    res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' })
+      .end(JSON.stringify({ error: 'Changes must come from OpenStatsEngine\'s own pages.' }));
+    return;
+  }
 
   const pathname = decodeURIComponent(url.pathname);
 
